@@ -9,5 +9,5 @@
 *.pyc
 .env
 dist
-.csv
-.xlsx
+*.csv
+*.xlsx
