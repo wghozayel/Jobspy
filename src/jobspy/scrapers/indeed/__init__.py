@@ -64,6 +64,7 @@ class IndeedScraper(Scraper):
             "l": scraper_input.location,
             "filter": 0,
             "start": scraper_input.offset + page * 10,
+            "sort": "date"
         }
         if scraper_input.distance:
             params["radius"] = scraper_input.distance
@@ -150,6 +151,7 @@ class IndeedScraper(Scraper):
                 title=job["normTitle"],
                 description=description,
                 company_name=job["company"],
+                company_url=self.url + job["companyOverviewLink"] if "companyOverviewLink" in job else None,
                 location=Location(
                     city=job.get("jobLocationCity"),
                     state=job.get("jobLocationState"),
@@ -235,24 +237,9 @@ class IndeedScraper(Scraper):
         if response.status_code not in range(200, 400):
             return None
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        script_tag = soup.find(
-            "script", text=lambda x: x and "window._initialData" in x
-        )
-
-        if not script_tag:
-            return None
-
-        script_code = script_tag.string
-        match = re.search(r"window\._initialData\s*=\s*({.*?})\s*;", script_code, re.S)
-
-        if not match:
-            return None
-
-        json_string = match.group(1)
-        data = json.loads(json_string)
         try:
-            job_description = data["jobInfoWrapperModel"]["jobInfoModel"][
+            data = json.loads(response.text)
+            job_description = data["body"]["jobInfoWrapperModel"]["jobInfoModel"][
                 "sanitizedJobDescription"
             ]
         except (KeyError, TypeError, IndexError):
@@ -320,7 +307,7 @@ class IndeedScraper(Scraper):
                 raise IndeedException("Could not find mosaic provider job cards data")
         else:
             raise IndeedException(
-                "Could not find a script tag containing mosaic provider data"
+                "Could not find any results for the search"
             )
 
     @staticmethod
