@@ -1,7 +1,9 @@
-from typing import Union, Optional
+from __future__ import annotations
+
+from typing import Optional
 from datetime import date
 from enum import Enum
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
 
 
 class JobType(Enum):
@@ -57,7 +59,7 @@ class JobType(Enum):
 class Country(Enum):
     """
     Gets the subdomain for Indeed and Glassdoor.
-    The second item in the tuple is the subdomain for Indeed
+    The second item in the tuple is the subdomain (and API country code if there's a ':' separator) for Indeed
     The third item in the tuple is the subdomain (and tld if there's a ':' separator) for Glassdoor
     """
 
@@ -118,11 +120,11 @@ class Country(Enum):
     TURKEY = ("turkey", "tr")
     UKRAINE = ("ukraine", "ua")
     UNITEDARABEMIRATES = ("united arab emirates", "ae")
-    UK = ("uk,united kingdom", "uk", "co.uk")
-    USA = ("usa,us,united states", "www", "com")
+    UK = ("uk,united kingdom", "uk:gb", "co.uk")
+    USA = ("usa,us,united states", "www:us", "com")
     URUGUAY = ("uruguay", "uy")
     VENEZUELA = ("venezuela", "ve")
-    VIETNAM = ("vietnam", "vn")
+    VIETNAM = ("vietnam", "vn", "com")
 
     # internal for ziprecruiter
     US_CANADA = ("usa/ca", "www")
@@ -132,7 +134,10 @@ class Country(Enum):
 
     @property
     def indeed_domain_value(self):
-        return self.value[1]
+        subdomain, _, api_country_code = self.value[1].partition(":")
+        if subdomain and api_country_code:
+            return subdomain, api_country_code.upper()
+        return self.value[1], self.value[1].upper()
 
     @property
     def glassdoor_domain_value(self):
@@ -145,7 +150,7 @@ class Country(Enum):
         else:
             raise Exception(f"Glassdoor is not available for {self.name}")
 
-    def get_url(self):
+    def get_glassdoor_url(self):
         return f"https://{self.glassdoor_domain_value}/"
 
     @classmethod
@@ -153,7 +158,7 @@ class Country(Enum):
         """Convert a string to the corresponding Country enum."""
         country_str = country_str.strip().lower()
         for country in cls:
-            country_names = country.value[0].split(',')
+            country_names = country.value[0].split(",")
             if country_str in country_names:
                 return country
         valid_countries = [country.value for country in cls]
@@ -163,7 +168,7 @@ class Country(Enum):
 
 
 class Location(BaseModel):
-    country: Country | None = None
+    country: Country | str | None = None
     city: Optional[str] = None
     state: Optional[str] = None
 
@@ -173,7 +178,12 @@ class Location(BaseModel):
             location_parts.append(self.city)
         if self.state:
             location_parts.append(self.state)
-        if self.country and self.country not in (Country.US_CANADA, Country.WORLDWIDE):
+        if isinstance(self.country, str):
+            location_parts.append(self.country)
+        elif self.country and self.country not in (
+            Country.US_CANADA,
+            Country.WORLDWIDE,
+        ):
             country_name = self.country.value[0]
             if "," in country_name:
                 country_name = country_name.split(",")[0]
@@ -193,33 +203,55 @@ class CompensationInterval(Enum):
 
     @classmethod
     def get_interval(cls, pay_period):
-        return cls[pay_period].value if pay_period in cls.__members__ else None
+        interval_mapping = {
+            "YEAR": cls.YEARLY,
+            "HOUR": cls.HOURLY,
+        }
+        if pay_period in interval_mapping:
+            return interval_mapping[pay_period].value
+        else:
+            return cls[pay_period].value if pay_period in cls.__members__ else None
 
 
 class Compensation(BaseModel):
     interval: Optional[CompensationInterval] = None
-    min_amount: int | None = None
-    max_amount: int | None = None
+    min_amount: float | None = None
+    max_amount: float | None = None
     currency: Optional[str] = "USD"
+
+
+class DescriptionFormat(Enum):
+    MARKDOWN = "markdown"
+    HTML = "html"
 
 
 class JobPost(BaseModel):
     title: str
-    company_name: str
+    company_name: str | None
     job_url: str
+    job_url_direct: str | None = None
     location: Optional[Location]
 
     description: str | None = None
     company_url: str | None = None
+    company_url_direct: str | None = None
 
     job_type: list[JobType] | None = None
     compensation: Compensation | None = None
     date_posted: date | None = None
-    benefits: str | None = None
     emails: list[str] | None = None
-    num_urgent_words: int | None = None
     is_remote: bool | None = None
-    # company_industry: str | None = None
+
+    # indeed specific
+    company_addresses: str | None = None
+    company_industry: str | None = None
+    company_num_employees: str | None = None
+    company_revenue: str | None = None
+    company_description: str | None = None
+    ceo_name: str | None = None
+    ceo_photo_url: str | None = None
+    logo_photo_url: str | None = None
+    banner_photo_url: str | None = None
 
 
 class JobResponse(BaseModel):

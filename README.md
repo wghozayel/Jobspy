@@ -11,7 +11,7 @@ work with us.*
 
 - Scrapes job postings from **LinkedIn**, **Indeed**, **Glassdoor**, & **ZipRecruiter** simultaneously
 - Aggregates the job postings in a Pandas DataFrame
-- Proxy support (HTTP/S, SOCKS)
+- Proxy support
 
 [Video Guide for JobSpy](https://www.youtube.com/watch?v=RuP1HrAZnxs&pp=ygUgam9icyBzY3JhcGVyIGJvdCBsaW5rZWRpbiBpbmRlZWQ%3D) -
 Updated for release v1.1.3
@@ -21,7 +21,7 @@ Updated for release v1.1.3
 ### Installation
 
 ```
-pip install python-jobspy
+pip install -U python-jobspy
 ```
 
 _Python version >= [3.10](https://www.python.org/downloads/release/python-3100/) required_
@@ -29,24 +29,26 @@ _Python version >= [3.10](https://www.python.org/downloads/release/python-3100/)
 ### Usage
 
 ```python
+import csv
 from jobspy import scrape_jobs
 
 jobs = scrape_jobs(
     site_name=["indeed", "linkedin", "zip_recruiter", "glassdoor"],
     search_term="software engineer",
     location="Dallas, TX",
-    results_wanted=10,
+    results_wanted=20,
+    hours_old=72, # (only Linkedin/Indeed is hour specific, others round up to days old)
     country_indeed='USA'  # only needed for indeed / glassdoor
 )
 print(f"Found {len(jobs)} jobs")
 print(jobs.head())
-jobs.to_csv("jobs.csv", index=False) # to_xlsx
+jobs.to_csv("jobs.csv", quoting=csv.QUOTE_NONNUMERIC, escapechar="\\", index=False) # to_xlsx
 ```
 
 ### Output
 
 ```
-SITE           TITLE                             COMPANY_NAME      CITY          STATE  JOB_TYPE  INTERVAL  MIN_AMOUNT  MAX_AMOUNT  JOB_URL                                            DESCRIPTION
+SITE           TITLE                             COMPANY           CITY          STATE  JOB_TYPE  INTERVAL  MIN_AMOUNT  MAX_AMOUNT  JOB_URL                                            DESCRIPTION
 indeed         Software Engineer                 AMERICAN SYSTEMS  Arlington     VA     None      yearly    200000      150000      https://www.indeed.com/viewjob?jk=5e409e577046...  THIS POSITION COMES WITH A 10K SIGNING BONUS!...
 indeed         Senior Software Engineer          TherapyNotes.com  Philadelphia  PA     fulltime  yearly    135000      110000      https://www.indeed.com/viewjob?jk=da39574a40cb...  About Us TherapyNotes is the national leader i...
 linkedin       Software Engineer - Early Career  Lockheed Martin   Sunnyvale     CA     fulltime  yearly    None        None        https://www.linkedin.com/jobs/view/3693012711      Description:By bringing together people that u...
@@ -58,19 +60,24 @@ zip_recruiter Software Developer                 TEKsystems        Phoenix      
 ### Parameters for `scrape_jobs()`
 
 ```plaintext
-Required
-├── site_type (List[enum]): linkedin, zip_recruiter, indeed, glassdoor
-└── search_term (str)
 Optional
-├── location (int)
-├── distance (int): in miles
-├── job_type (enum): fulltime, parttime, internship, contract
-├── proxy (str): in format 'http://user:pass@host:port' or [https, socks]
+├── site_name (list|str): linkedin, zip_recruiter, indeed, glassdoor (default is all four)
+├── search_term (str)
+├── location (str)
+├── distance (int): in miles, default 50
+├── job_type (str): fulltime, parttime, internship, contract
+├── proxy (str): in format 'http://user:pass@host:port'
 ├── is_remote (bool)
-├── results_wanted (int): number of job results to retrieve for each site specified in 'site_type'
-├── easy_apply (bool): filters for jobs that are hosted on LinkedIn
-├── country_indeed (enum): filters the country on Indeed (see below for correct spelling)
-├── offset (num): starts the search from an offset (e.g. 25 will start the search from the 25th result)
+├── results_wanted (int): number of job results to retrieve for each site specified in 'site_name'
+├── easy_apply (bool): filters for jobs that are hosted on the job board site (LinkedIn & Indeed do not allow pairing this with hours_old)
+├── linkedin_fetch_description (bool): fetches full description for LinkedIn (slower)
+├── linkedin_company_ids (list[int]): searches for linkedin jobs with specific company ids
+├── description_format (str): markdown, html (Format type of the job descriptions. Default is markdown.)
+├── country_indeed (str): filters the country on Indeed (see below for correct spelling)
+├── offset (int): starts the search from an offset (e.g. 25 will start the search from the 25th result)
+├── hours_old (int): filters jobs by the number of hours since the job was posted (ZipRecruiter and Glassdoor round up to next day. If you use this on Indeed, it will not filter by job_type/is_remote/easy_apply)
+├── verbose (int) {0, 1, 2}: Controls the verbosity of the runtime printouts (0 prints only errors, 1 is errors+warnings, 2 is all logs. Default is 2.)
+├── hyperlinks (bool): Whether to turn `job_url`s into hyperlinks. Default is false.
 ```
 
 ### JobPost Schema
@@ -79,6 +86,7 @@ Optional
 JobPost
 ├── title (str)
 ├── company (str)
+├── company_url (str)
 ├── job_url (str)
 ├── location (object)
 │   ├── country (str)
@@ -93,24 +101,26 @@ JobPost
 │   └── currency (enum)
 └── date_posted (date)
 └── emails (str)
-└── num_urgent_words (int)
 └── is_remote (bool)
+
+Indeed specific
+├── company_country (str)
+└── company_addresses (str)
+└── company_industry (str)
+└── company_employees_label (str)
+└── company_revenue_label (str)
+└── company_description (str)
+└── ceo_name (str)
+└── ceo_photo_url (str)
+└── logo_photo_url (str)
+└── banner_photo_url (str)
 ```
-
-### Exceptions
-
-The following exceptions may be raised when using JobSpy:
-
-* `LinkedInException`
-* `IndeedException`
-* `ZipRecruiterException`
-* `GlassdoorException`
 
 ## Supported Countries for Job Searching
 
 ### **LinkedIn**
 
-LinkedIn searches globally & uses only the `location` parameter. You can only fetch 1000 jobs max from the LinkedIn endpoint we're using
+LinkedIn searches globally & uses only the `location` parameter. 
 
 ### **ZipRecruiter**
 
@@ -140,10 +150,14 @@ You can specify the following countries when searching on Indeed (use the exact 
 | South Korea          | Spain*       | Sweden     | Switzerland*   |
 | Taiwan               | Thailand     | Turkey     | Ukraine        |
 | United Arab Emirates | UK*          | USA*       | Uruguay        |
-| Venezuela            | Vietnam      |            |                |
+| Venezuela            | Vietnam*     |            |                |
 
 
-Glassdoor can only fetch 900 jobs from the endpoint we're using on a given search.
+## Notes
+* Indeed is the best scraper currently with no rate limiting.  
+* All the job board endpoints are capped at around 1000 jobs on a given search.  
+* LinkedIn is the most restrictive and usually rate limits around the 10th page.
+
 ## Frequently Asked Questions
 
 ---
@@ -157,16 +171,7 @@ persist, [submit an issue](https://github.com/Bunsly/JobSpy/issues).
 **Q: Received a response code 429?**  
 **A:** This indicates that you have been blocked by the job board site for sending too many requests. All of the job board sites are aggressive with blocking. We recommend:
 
-- Waiting a few seconds between requests.
+- Waiting some time between scrapes (site-dependent).
 - Trying a VPN or proxy to change your IP address.
 
 ---
-
-**Q: Experiencing a "Segmentation fault: 11" on macOS Catalina?**  
-**A:** This is due to `tls_client` dependency not supporting your architecture. Solutions and workarounds include:
-
-- Upgrade to a newer version of MacOS
-- Reach out to the maintainers of [tls_client](https://github.com/bogdanfinn/tls-client) for fixes
-
-
-  
