@@ -115,7 +115,8 @@ class IndeedScraper(Scraper):
             headers=api_headers,
             json=payload,
             proxies=self.proxy,
-            timeout=10,
+            # verify=False,
+            timeout=15,
         )
         if response.status_code != 200:
             logger.info(

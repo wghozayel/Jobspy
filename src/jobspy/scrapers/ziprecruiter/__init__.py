@@ -40,10 +40,10 @@ class ZipRecruiterScraper(Scraper):
         """
         Initializes ZipRecruiterScraper with the ZipRecruiter job search url
         """
+        super().__init__(Site(Site.ZIP_RECRUITER), proxy=proxy)
         self.scraper_input = None
-        self.session = create_session(is_tls=False)
+        self.session = create_session(is_tls=False, proxy=self.proxy)
         self._get_cookies()
-        super().__init__(Site.ZIP_RECRUITER, proxy=proxy)
 
         self.delay = 5
         self.jobs_per_page = 20

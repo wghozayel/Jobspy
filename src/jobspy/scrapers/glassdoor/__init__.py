@@ -59,7 +59,7 @@ class GlassdoorScraper(Scraper):
         self.scraper_input.results_wanted = min(900, scraper_input.results_wanted)
         self.base_url = self.scraper_input.country.get_glassdoor_url()
 
-        self.session = create_session(is_tls=False, has_retry=True)
+        self.session = create_session(is_tls=False, has_retry=True, proxy=self.proxy)
         token = self._get_csrf_token()
         self.headers["gd-csrf-token"] = token if token else self.fallback_token
 
@@ -244,7 +244,7 @@ class GlassdoorScraper(Scraper):
         if not location or is_remote:
             return "11047", "STATE"  # remote options
         url = f"{self.base_url}/findPopularLocationAjax.htm?maxLocationsToReturn=10&term={location}"
-        session = create_session(is_tls=False, has_retry=True)
+        session = create_session(is_tls=False, has_retry=True, proxy=self.proxy)
         res = self.session.get(url, headers=self.headers)
         if res.status_code != 200:
             if res.status_code == 429:

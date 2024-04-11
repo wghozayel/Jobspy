@@ -67,6 +67,7 @@ def create_session(
         session.proxies = proxy
     else:
         session = requests.Session()
+        # session.verify = False
         session.allow_redirects = True
         if proxy:
             session.proxies.update(proxy)
